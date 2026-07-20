@@ -1,0 +1,312 @@
+// =====================================================
+// Niajiri Recruitment Platform — Prisma Schema
+// Database: MySQL (niajiri_platform)
+// =====================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextIndex"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------
+// ENUMS
+// -----------------------------------------------------
+
+enum EmployerRole {
+  OWNER
+  RECRUITER
+}
+
+enum JobStatus {
+  OPEN
+  CLOSED
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  TEMPORARY
+}
+
+enum QuestionType {
+  TEXT
+  TEXTAREA
+  YES_NO
+  NUMBER
+  DATE
+  DROPDOWN
+}
+
+enum ApplicationStatus {
+  PENDING
+  UNDER_REVIEW
+  SHORTLISTED
+  INTERVIEW
+  REJECTED
+  HIRED
+}
+
+enum ChatSessionStatus {
+  ACTIVE
+  COMPLETED
+  ABANDONED
+}
+
+enum ChatSender {
+  BOT
+  USER
+}
+
+enum Language {
+  EN
+  SW
+}
+
+// -----------------------------------------------------
+// EMPLOYER SIDE
+// -----------------------------------------------------
+
+model Company {
+  id          String   @id @default(uuid())
+  name        String
+  logoUrl     String?  @db.Text
+  website     String?
+  about       String?  @db.Text
+  location    String?
+  botGreetingEn String? @db.Text
+  botGreetingSw String? @db.Text
+  botLanguageDefault Language @default(EN)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employers   Employer[]
+  jobs        Job[]
+
+  @@map("companies")
+}
+
+model Employer {
+  id           String       @id @default(uuid())
+  companyId    String
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fullName     String
+  email        String       @unique
+  passwordHash String
+  role         EmployerRole @default(RECRUITER)
+  isActive     Boolean      @default(true)
+  resetToken       String?
+  resetTokenExpiry DateTime?
+  lastLoginAt  DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  jobs         Job[]        @relation("JobCreatedBy")
+  statusChanges ApplicationStatusHistory[]
+
+  @@index([companyId])
+  @@map("employers")
+}
+
+// -----------------------------------------------------
+// JOBS
+// -----------------------------------------------------
+
+model Job {
+  id             String         @id @default(uuid())
+  companyId      String
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdById    String
+  createdBy      Employer       @relation("JobCreatedBy", fields: [createdById], references: [id])
+  title          String
+  slug           String         @unique
+  description    String         @db.Text
+  category       String
+  location       String
+  employmentType EmploymentType
+  status         JobStatus      @default(OPEN)
+  salaryMin      Int?
+  salaryMax      Int?
+  keywords       String?        @db.Text // comma separated, aids chatbot search
+  closesAt       DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  questions      Question[]
+  applications   Application[]
+  chatSessions   ChatSession[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([category])
+  @@index([location])
+  @@fulltext([title, description, keywords])
+  @@map("jobs")
+}
+
+model Question {
+  id         String       @id @default(uuid())
+  jobId      String
+  job        Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  label      String
+  type       QuestionType
+  required   Boolean      @default(true)
+  order      Int          @default(0)
+  options    String?      @db.Text // JSON-encoded array, used for DROPDOWN
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  answers    Answer[]
+
+  @@index([jobId])
+  @@map("questions")
+}
+
+// -----------------------------------------------------
+// APPLICANTS / APPLICATIONS (chatbot-facing)
+// -----------------------------------------------------
+
+model Applicant {
+  id          String   @id @default(uuid())
+  fullName    String
+  phone       String   @unique
+  email       String?
+  preferredLanguage Language @default(EN)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  applications Application[]
+  chatSessions ChatSession[]
+
+  @@map("applicants")
+}
+
+model Candidate {
+  id             String           @id @default(uuid())
+  name           String
+  phone          String           @unique
+  email          String?
+  skills         String?
+  location       String?
+  cvUrl          String?
+  whatsappStatus String           @default("NEW")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  whatsappSessions WhatsAppSession[]
+
+  @@map("candidates")
+}
+
+model WhatsAppSession {
+  id            String      @id @default(uuid())
+  phone         String
+  state         String
+  status        String      @default("ACTIVE")
+  lastMessage   String?     @db.Text
+  candidateName String?
+  candidateEmail String?
+  skills        String?
+  location      String?
+  cvUrl         String?
+  candidateId   String?
+  candidate     Candidate?  @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([phone])
+  @@map("whatsapp_sessions")
+}
+
+model Application {
+  id           String            @id @default(uuid())
+  jobId        String
+  job          Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  applicantId  String
+  applicant    Applicant         @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  status       ApplicationStatus @default(PENDING)
+  resumeUrl    String?
+  photoUrl     String?
+  voiceNoteUrl String?
+  submittedAt  DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  answers      Answer[]
+  statusHistory ApplicationStatusHistory[]
+  chatSession  ChatSession?
+
+  @@index([jobId])
+  @@index([applicantId])
+  @@index([status])
+  @@map("applications")
+}
+
+model Answer {
+  id            String      @id @default(uuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  questionId    String
+  question      Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  value         String      @db.Text
+
+  @@index([applicationId])
+  @@index([questionId])
+  @@map("answers")
+}
+
+model ApplicationStatusHistory {
+  id            String            @id @default(uuid())
+  applicationId String
+  application   Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  status        ApplicationStatus
+  changedById   String?
+  changedBy     Employer?         @relation(fields: [changedById], references: [id])
+  note          String?           @db.Text
+  createdAt     DateTime          @default(now())
+
+  @@index([applicationId])
+  @@map("application_status_history")
+}
+
+// -----------------------------------------------------
+// CHATBOT SESSIONS (conversation state, for resume support)
+// -----------------------------------------------------
+
+model ChatSession {
+  id            String            @id @default(uuid())
+  applicantId   String
+  applicant     Applicant         @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  jobId         String?
+  job           Job?              @relation(fields: [jobId], references: [id])
+  applicationId String?           @unique
+  application   Application?      @relation(fields: [applicationId], references: [id])
+  status        ChatSessionStatus @default(ACTIVE)
+  currentStep   String?           // e.g. "ASK_QUESTION", questionId, "REVIEW"
+  language      Language          @default(EN)
+  contextJson   String?           @db.Text // JSON blob of in-progress answers
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  messages      ChatMessage[]
+
+  @@index([applicantId])
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id        String      @id @default(uuid())
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sender    ChatSender
+  content   String      @db.Text
+  createdAt DateTime    @default(now())
+
+  @@index([sessionId])
+  @@map("chat_messages")
+}
