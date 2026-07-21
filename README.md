@@ -4,17 +4,15 @@
 
 **Developer:** Newton Joshua Sinda — [github.com/NewtonjoshuaS](https://github.com/NewtonjoshuaS)
 
-This is the **backend** repository. The frontend lives at [github.com/NewtonjoshuaS/niajiri-frontend](https://github.com/NewtonjoshuaS/niajiri-frontend).
-
 ---
 
 ## What This Does
 
 This API powers:
-- **Employer Portal** — auth, job management, application tracking, dashboards
-- **NiaBot** — candidate chat sessions, dynamic question flow, CV uploads, status lookups
-- **WhatsApp Bot** — Twilio webhook integration for real WhatsApp job applications
-- **File Uploads** — CVs/resumes stored in `/uploads/resumes/`
+- **Employer Portal** — Authentication, job management, application tracking, dashboards.
+- **NiaBot** — Candidate chat sessions, dynamic question flow, CV uploads, status lookups.
+- **WhatsApp Bot** — Twilio webhook integration for real WhatsApp job applications.
+- **File Uploads** — Resumes stored locally in `/uploads/resumes/` (or via mount directory).
 
 ---
 
@@ -22,14 +20,10 @@ This API powers:
 
 ### Prerequisites
 - Node.js 20+
-- MySQL 8 database (local or managed)
+- MySQL 8 database
 
 ### Setup
 ```bash
-git clone https://github.com/NewtonjoshuaS/niajiri-backend.git
-cd niajiri-backend
-
-# Copy and configure environment
 cp .env.example .env
 # Edit .env with your database credentials and JWT secrets
 
@@ -45,81 +39,66 @@ npm run dev
 ```
 
 The API runs at: **http://localhost:5000**
-
 Health check: **http://localhost:5000/api/health**
 
 ---
 
 ## Environment Variables
 
-See `.env.example` for all required variables. Key ones:
+Key variables used by the backend. See `.env.example` for the full template:
 
 ```env
 DATABASE_URL="mysql://root:password@localhost:3307/niajiri_platform"
 PORT=5000
+NODE_ENV=development
 CLIENT_URL=http://localhost:5173
-JWT_SECRET=your_long_random_secret
+JWT_SECRET=your_jwt_secret
 ```
 
 ---
 
-## Key Endpoints
+## Deployed on Render
+
+This service is deployed as a **Docker Web Service** on Render:
+
+1. Create a **Web Service** on Render and connect your repository.
+2. Select **Docker** as the Runtime environment.
+3. Render will read the root `backend/Dockerfile` automatically.
+4. Add all environment variables from `.env.example` with production values.
+5. Set `PORT` to `10000`.
+
+---
+
+## API Endpoints
 
 ### Public (No Auth)
 ```
-GET  /api/jobs                         List open jobs
 GET  /api/health                       Health check
+GET  /api/jobs                         List open jobs
+GET  /api/jobs/:slug                   Get job by slug
 POST /api/chat/sessions                Start a candidate application chat
 POST /api/chat/sessions/:id/answer     Answer a chat question
-GET  /api/chat/status?phone=xxx        Check application status
+GET  /api/chat/status                  Check application status
 POST /api/chat/upload-cv               Upload a CV file
+GET  /api/whatsapp/webhook             Webhook health check
+POST /api/whatsapp/webhook             Twilio WhatsApp webhook
 ```
 
 ### Employer (JWT Bearer Token Required)
 ```
-POST /api/auth/login                   Login
 POST /api/auth/register                Register employer
+POST /api/auth/login                   Login
 GET  /api/auth/me                      Get current employer
+POST /api/auth/logout                  Logout
+POST /api/auth/forgot-password         Request password reset
+POST /api/auth/reset-password          Reset password
 GET  /api/applications/dashboard       Dashboard metrics
 GET  /api/applications                 List applications
+GET  /api/applications/:id             Get single application details
 PATCH /api/applications/:id/status     Update application status
 POST /api/jobs                         Create job
 PUT  /api/jobs/:id                     Update job
 DELETE /api/jobs/:id                   Delete job
-```
-
----
-
-## Deploy to Render
-
-1. Create a [Render](https://render.com) Web Service
-2. Connect this GitHub repository
-3. Set:
-   - **Build Command:** `npm install && npx prisma generate && npx prisma migrate deploy && npm run seed`
-   - **Start Command:** `npm start`
-4. Add all environment variables from `.env.example` with production values
-5. Deploy
-
----
-
-## Docker
-
-```bash
-# Build and run standalone (requires external MySQL)
-docker build -t niajiri-backend .
-docker run -p 5000:5000 --env-file .env niajiri-backend
-
-# Or use the full docker-compose from the monorepo root
-```
-
----
-
-## Demo Login
-
-After seeding, use:
-```
-Email:    employer@niajiri.co.tz
-Password: Password123!
 ```
 
 ---
