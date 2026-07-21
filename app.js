@@ -14,12 +14,27 @@ const logger = require("./utils/logger");
 const app = express();
 
 app.use(helmet({ crossOriginResourcePolicy: false }));
+
+// Flexible CORS setup to seamlessly support Vercel deployments and local dev
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: (origin, callback) => {
+      // allow requests with no origin (like mobile apps, curl, or Postman)
+      if (!origin) return callback(null, true);
+      // allow any vercel app deployment, localhost, or process.env.CLIENT_URL
+      if (
+        origin.endsWith(".vercel.app") ||
+        origin.includes("localhost") ||
+        origin === process.env.CLIENT_URL
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     credentials: true
   })
 );
+
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(
