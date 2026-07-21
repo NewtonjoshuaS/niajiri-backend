@@ -3,9 +3,20 @@ const { body, query } = require("express-validator");
 const { protect } = require("../middleware/auth");
 const validate = require("../middleware/validate");
 const { listApplications, getApplication, updateStatus, dashboard } = require("../controllers/applicationController");
+
 router.use(protect);
+
 router.get("/dashboard", dashboard);
 router.get("/", [query("status").optional().isIn(["PENDING", "UNDER_REVIEW", "SHORTLISTED", "INTERVIEW", "REJECTED", "HIRED"])], validate, listApplications);
 router.get("/:id", getApplication);
-router.patch("/:id/status", [body("status").isIn(["PENDING", "UNDER_REVIEW", "SHORTLISTED", "INTERVIEW", "REJECTED", "HIRED"]), body("note").optional().isString()], validate, updateStatus);
+router.patch(
+  "/:id/status",
+  [
+    body("status").isIn(["PENDING", "UNDER_REVIEW", "SHORTLISTED", "INTERVIEW", "REJECTED", "HIRED"]),
+    body("note").optional({ nullable: true, checkFalsy: true }).isString()
+  ],
+  validate,
+  updateStatus
+);
+
 module.exports = router;
